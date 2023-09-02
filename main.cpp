@@ -1,6 +1,5 @@
 #include <mod/amlmod.h>
 #include <mod/logger.h>
-#include <isautils.h>
 
 #ifdef AML32
     #include "GTASA_STRUCTS.h"
@@ -20,6 +19,10 @@ uintptr_t pGTASA;
 void* hGTASA;
 
 #define MAX_FLUFFY_CLOUDS 37
+#define FLUFF_Z_OFFSET 50.0f // 40.0f
+#define FLUFF_ALPHA 160
+
+#define NO_FLUFF_AT_HEIGHTS
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -98,16 +101,27 @@ inline RwTexture* GetTextureFromTexDB(TextureDatabaseRuntime* texdb, const char*
 inline void RenderFluffyClouds()
 {
     *SunBlockedByClouds = false;
-    int fluffyalpha = 160 * (1.0f - fmax(*Foggyness, *ExtraSunnyness));
-    if(fluffyalpha != 0)
+    int fluffyalpha = FLUFF_ALPHA * (1.0f - fmax(*Foggyness, *ExtraSunnyness));
+
+    CVector campos = TheCamera->GetPosition();
+#ifdef NO_FLUFF_AT_HEIGHTS
+    if(campos.z > FLUFF_Z_OFFSET)
+    {
+        fluffyalpha -= (campos.z - FLUFF_Z_OFFSET) * ((float)(FLUFF_ALPHA) / 255.0f);
+    }
+#endif
+
+    if(fluffyalpha > 0)
     {
         InitSpriteBuffer();
 
         float sundist, hilight;
         float szx, szy;
         RwV3d screenpos, worldpos;
+        int distLimit = (3 * RsGlobal->maximumWidth) / 4;
+        int sundistBlocked = RsGlobal->maximumWidth / 10;
+        int sundistBlocked2 = RsGlobal->maximumWidth / 3;
 
-        CVector campos = TheCamera->GetPosition();
         float rot_sin = sinf(*CloudRotation);
         float rot_cos = cosf(*CloudRotation);
 
@@ -116,7 +130,7 @@ inline void RenderFluffyClouds()
         RwRenderStateSet(rwRENDERSTATETEXTURERASTER, gpCloudTex[3]->raster);
         for(int i = 0; i < MAX_FLUFFY_CLOUDS; ++i)
         {
-            RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + 40.0f };
+            RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + FLUFF_Z_OFFSET };
             worldpos.x = pos.x * rot_cos + pos.y * rot_sin + campos.x;
             worldpos.y = pos.x * rot_sin - pos.y * rot_cos + campos.y;
             worldpos.z = pos.z;
@@ -131,7 +145,6 @@ inline void RenderFluffyClouds()
                 int bg = m_CurrentColours->fluffycloudg;
                 int bb = m_CurrentColours->fluffycloudb;
 
-                int distLimit = (3 * RsGlobal->maximumWidth) / 4;
                 if (sundist < distLimit)
                 {
                     hilight = (1.0f - fmax(*Foggyness, *CloudCoverage)) * (1.0f - sundist / (float)distLimit);
@@ -142,7 +155,7 @@ inline void RenderFluffyClouds()
                     bg = bg * (1.0f - hilight) + 150 * hilight;
                     bb = bb * (1.0f - hilight) + 150 * hilight;
 
-                    if (sundist < RsGlobal->maximumWidth / 10) *SunBlockedByClouds = true;
+                    if (sundist < sundistBlocked) *SunBlockedByClouds = true;
                 }
                 else
                 {
@@ -166,14 +179,14 @@ inline void RenderFluffyClouds()
         {
             if(!CloudOnScreen[i]) continue;
 
-            RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + 40.0f };
+            RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + FLUFF_Z_OFFSET };
             worldpos.x = pos.x * rot_cos + pos.y * rot_sin + campos.x;
             worldpos.y = pos.x * rot_sin - pos.y * rot_cos + campos.y;
             worldpos.z = pos.z;
 
             if (CalcScreenCoors(worldpos, &screenpos, &szx, &szy, false, false))
             {
-                if (sundist < RsGlobal->maximumWidth / 3)
+                if (sundist < sundistBlocked2)
                 {
                     RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * hilight, 0, 0, 255, 1.0f / screenpos.z,
                                                              1.7f - GetATanOfXY(screenpos.x - *SunScreenX, screenpos.y - *SunScreenY) + *ms_cameraRoll, 255);
