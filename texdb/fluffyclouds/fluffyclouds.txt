@@ -1,3 +1,3 @@
 cat=0 name=Default onfoot=0 slow=0 fast=0 defaultstream=0
-"cloudhilit" camnorm=1 alphamode=2 height=64 width=64 img=8cf456f7 noalphatest=1
-"cloudmasked" camnorm=1 alphamode=2 height=64 width=64 img=b51517af noalphatest=1
+"cloudhilit" camnorm=1 alphamode=2 height=64 width=64 img=8cf456f7 noalphatest=1 forcez=1
+"cloudmasked" camnorm=1 alphamode=2 height=64 width=64 img=b51517af noalphatest=1 forcez=1
