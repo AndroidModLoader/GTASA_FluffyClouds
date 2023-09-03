@@ -20,7 +20,7 @@ void* hGTASA;
 
 #define MAX_FLUFFY_CLOUDS 37
 #define FLUFF_Z_OFFSET 50.0f // 40.0f
-#define FLUFF_ALPHA 160
+#define FLUFF_ALPHA 180
 
 #define NO_FLUFF_AT_HEIGHTS
 
@@ -35,7 +35,7 @@ CCamera *TheCamera;
 bool *SunBlockedByClouds;
 CColourSet *m_CurrentColours;
 RsGlobalType *RsGlobal;
-TextureDatabaseRuntime* FluffyCloudsTexdb;
+TextureDatabaseRuntime* FluffyCloudsTexDB;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -107,7 +107,7 @@ inline void RenderFluffyClouds()
 #ifdef NO_FLUFF_AT_HEIGHTS
     if(campos.z > FLUFF_Z_OFFSET)
     {
-        fluffyalpha -= (campos.z - FLUFF_Z_OFFSET) * ((float)(FLUFF_ALPHA) / 255.0f);
+        fluffyalpha -= (campos.z - FLUFF_Z_OFFSET) * ((float)(255 - (unsigned char)FLUFF_ALPHA) / 255.0f);
     }
 #endif
 
@@ -120,10 +120,14 @@ inline void RenderFluffyClouds()
         RwV3d screenpos, worldpos;
         int distLimit = (3 * RsGlobal->maximumWidth) / 4;
         int sundistBlocked = RsGlobal->maximumWidth / 10;
-        int sundistBlocked2 = RsGlobal->maximumWidth / 3;
+        int sundistHilit = RsGlobal->maximumWidth / 3;
 
         float rot_sin = sinf(*CloudRotation);
         float rot_cos = cosf(*CloudRotation);
+
+        RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)0);
+        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)0);
+        RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)1);
 
         RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDSRCALPHA);
         RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDINVSRCALPHA);
@@ -155,7 +159,7 @@ inline void RenderFluffyClouds()
                     bg = bg * (1.0f - hilight) + 150 * hilight;
                     bb = bb * (1.0f - hilight) + 150 * hilight;
 
-                    if (sundist < sundistBlocked) *SunBlockedByClouds = true;
+                    if (sundist < sundistBlocked) *SunBlockedByClouds = (fluffyalpha > (FLUFF_ALPHA / 2));
                 }
                 else
                 {
@@ -186,7 +190,7 @@ inline void RenderFluffyClouds()
 
             if (CalcScreenCoors(worldpos, &screenpos, &szx, &szy, false, false))
             {
-                if (sundist < sundistBlocked2)
+                if (sundist < sundistHilit)
                 {
                     RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * hilight, 0, 0, 255, 1.0f / screenpos.z,
                                                              1.7f - GetATanOfXY(screenpos.x - *SunScreenX, screenpos.y - *SunScreenY) + *ms_cameraRoll, 255);
@@ -205,11 +209,11 @@ inline void RenderFluffyClouds()
 DECL_HOOK(bool, GameInit3, void* data)
 {
     bool ret = GameInit3(data);
-    FluffyCloudsTexdb = TextureDatabaseLoad("fluffyclouds", false, DF_Default);
-    if(FluffyCloudsTexdb)
+    FluffyCloudsTexDB = TextureDatabaseLoad("fluffyclouds", false, DF_Default);
+    if(FluffyCloudsTexDB)
     {
-        gpCloudTex[3] = GetTextureFromTexDB(FluffyCloudsTexdb, "cloudmasked");
-        gpCloudTex[4] = GetTextureFromTexDB(FluffyCloudsTexdb, "cloudhilit");
+        gpCloudTex[3] = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudmasked");
+        gpCloudTex[4] = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudhilit");
     }
     return ret;
 }
