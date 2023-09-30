@@ -19,7 +19,7 @@ uintptr_t pGTASA;
 void* hGTASA;
 
 #define MAX_FLUFFY_CLOUDS 37
-#define FLUFF_Z_OFFSET 50.0f // 40.0f
+#define FLUFF_Z_OFFSET 55.0f // 40.0f
 #define FLUFF_ALPHA 180
 
 #define NO_FLUFF_AT_HEIGHTS
@@ -53,14 +53,18 @@ int (*GetEntry)(TextureDatabaseRuntime *,char const*, bool*);
 RwTexture* (*GetRWTexture)(TextureDatabaseRuntime *, int);
 bool (*CanSeeOutSideFromCurrArea)();
 void (*InitSpriteBuffer)();
+void (*DefinedState)();
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 //////      Variables
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
+CVector SunOnScreenUncapped;
 RwTexture* gpCloudTex[5];
 bool CloudOnScreen[MAX_FLUFFY_CLOUDS];
+float CloudHighlight[MAX_FLUFFY_CLOUDS];
+float CloudToSunDistance[MAX_FLUFFY_CLOUDS];
 
 float CoorsOffsetX[MAX_FLUFFY_CLOUDS] = {
     0.0f, 60.0f, 72.0f, 48.0f, 21.0f, 12.0f,
@@ -113,21 +117,23 @@ inline void RenderFluffyClouds()
 
     if(fluffyalpha > 0)
     {
+        if(fluffyalpha > 255) fluffyalpha = 255;
         InitSpriteBuffer();
 
         float sundist, hilight;
         float szx, szy;
         RwV3d screenpos, worldpos;
-        int distLimit = (3 * RsGlobal->maximumWidth) / 4;
-        int sundistBlocked = RsGlobal->maximumWidth / 10;
-        int sundistHilit = RsGlobal->maximumWidth / 3;
+        float distLimit = (3.0f * (float)(RsGlobal->maximumWidth)) / 4.0f;
+        float sundistBlocked = (float)(RsGlobal->maximumWidth) / 10.0f;
+        float sundistHilit = (float)(RsGlobal->maximumWidth) / 3.0;
 
         float rot_sin = sinf(*CloudRotation);
         float rot_cos = cosf(*CloudRotation);
 
-        RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)0);
-        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)0);
-        RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)1);
+        DefinedState();
+        //RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)1);
+        //RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)1);
+        //RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)1);
 
         RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDSRCALPHA);
         RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDINVSRCALPHA);
@@ -142,12 +148,13 @@ inline void RenderFluffyClouds()
             if (CalcScreenCoors(worldpos, &screenpos, &szx, &szy, false, false))
             {
                 sundist = sqrtf(SQR(screenpos.x - *SunScreenX) + SQR(screenpos.y - *SunScreenY));
-                int tr = 0;
-                int tg = 0;
-                int tb = 0;
-                int br = m_CurrentColours->fluffycloudr;
-                int bg = m_CurrentColours->fluffycloudg;
-                int bb = m_CurrentColours->fluffycloudb;
+                //sundist = sqrtf(SQR(screenpos.x - SunOnScreenUncapped.x) + SQR(screenpos.y - SunOnScreenUncapped.y));
+                int tr = m_CurrentColours->fluffycloudr; //0;
+                int tg = m_CurrentColours->fluffycloudg; //0;
+                int tb = m_CurrentColours->fluffycloudb; //0;
+                int br = (int)(m_CurrentColours->fluffycloudr * 0.85f);
+                int bg = (int)(m_CurrentColours->fluffycloudg * 0.85f);
+                int bb = (int)(m_CurrentColours->fluffycloudb * 0.85f);
 
                 if (sundist < distLimit)
                 {
@@ -158,13 +165,16 @@ inline void RenderFluffyClouds()
                     br = br * (1.0f - hilight) + 255 * hilight;
                     bg = bg * (1.0f - hilight) + 150 * hilight;
                     bb = bb * (1.0f - hilight) + 150 * hilight;
+                    CloudHighlight[i] = hilight;
 
                     if (sundist < sundistBlocked) *SunBlockedByClouds = (fluffyalpha > (FLUFF_ALPHA / 2));
                 }
                 else
                 {
-                    hilight = 0.0f;
+                    //hilight = 0.0f;
+                    CloudHighlight[i] = 0.0f;
                 }
+                CloudToSunDistance[i] = sundist;
                 CloudOnScreen[i] = true;
                 RenderBufferedOneXLUSprite_Rotate_2Colours(screenpos.x, screenpos.y, screenpos.z, szx * 55.0f, szy * 55.0f, tr, tg, tb, br, bg, bb, 0.0f, -1.0f,
                                                            1.0f / screenpos.z, (uint16_t)*IndividualRotation / 65336.0f * 6.28f + *ms_cameraRoll, fluffyalpha);
@@ -190,14 +200,23 @@ inline void RenderFluffyClouds()
 
             if (CalcScreenCoors(worldpos, &screenpos, &szx, &szy, false, false))
             {
-                if (sundist < sundistHilit)
+                //if (CloudToSunDistance[i] < sundistHilit)
+                if(CloudHighlight[i] > 0)
                 {
-                    RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * hilight, 0, 0, 255, 1.0f / screenpos.z,
+                    RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
                                                              1.7f - GetATanOfXY(screenpos.x - *SunScreenX, screenpos.y - *SunScreenY) + *ms_cameraRoll, 255);
+                    //RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
+                    //                                         1.7f - GetATanOfXY(screenpos.x - SunOnScreenUncapped.x, screenpos.y - SunOnScreenUncapped.y) + *ms_cameraRoll, 255);
                 }
             }
         }
         FlushSpriteBuffer();
+
+        RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)0);
+        RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)1);
+        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)1);
+        RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDSRCALPHA);
+        RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDINVSRCALPHA);
     }
 }
 
@@ -222,6 +241,47 @@ DECL_HOOKv(RenderEffects)
     if (CanSeeOutSideFromCurrArea()) RenderFluffyClouds();
     RenderEffects();
 }
+
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+//////      Patches
+////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////
+uintptr_t DoSunAndMoon_BackTo;
+extern "C" void DoSunAndMoon_Patch(CVector* screenPos)
+{
+    SunOnScreenUncapped = *screenPos;
+}
+#ifdef AML32
+__attribute__((optnone)) __attribute__((naked)) void DoSunAndMoon_Inject(void)
+{
+    asm volatile("PUSH {R0-R11}");
+    asm volatile("ADD R0, SP, 0x84");
+    asm volatile("BL DoSunAndMoon_Patch");
+    asm volatile("MOV R12, %0" :: "r" (DoSunAndMoon_BackTo));
+    asm volatile("POP {R0-R11}");
+
+    asm volatile("ADD SP, SP, #0x68");
+    asm volatile("VPOP {D8}");
+    asm volatile("POP.W {R8,R9,R11}");
+
+    asm volatile("BX R12");
+}
+#else
+__attribute__((optnone)) __attribute__((naked)) void DoSunAndMoon_Inject(void)
+{
+    asm volatile("SUB X0, X29, #0x48");
+    asm volatile("BL DoSunAndMoon_Patch");
+    asm volatile("MOV X16, %0" :: "r"(DoSunAndMoon_BackTo));
+
+    asm volatile("LDP X29, X30, [SP,#0xA0]\n"
+                 "LDP X20, X19, [SP,#0x90]\n"
+                 "LDP X22, X21, [SP,#0x80]\n"
+                 "LDP D9, D8, [SP,#0x70]\n");
+                 
+    asm volatile("BR X16");
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -259,7 +319,12 @@ extern "C" void OnAllModsLoaded()
     SET_TO(GetRWTexture, aml->GetSym(hGTASA, "_ZN22TextureDatabaseRuntime12GetRWTextureEi"));
     SET_TO(CanSeeOutSideFromCurrArea, aml->GetSym(hGTASA, "_ZN5CGame25CanSeeOutSideFromCurrAreaEv"));
     SET_TO(InitSpriteBuffer, aml->GetSym(hGTASA, "_ZN7CSprite16InitSpriteBufferEv"));
+    SET_TO(DefinedState, aml->GetSym(hGTASA, "_Z12DefinedStatev"));
 
     HOOKPLT(GameInit3, pGTASA + BYVER(0x6742F0, 0x8470F0));
+    //HOOKPLT(RenderEffects, pGTASA + BYVER(0x672FFC, 0x8451A0)); // CClouds::Render ( looks bad... :( )
     HOOKPLT(RenderEffects, pGTASA + BYVER(0x670BD4, 0x8452B0));
+
+    //DoSunAndMoon_BackTo = pGTASA + BYVER(0x5A3FE6 + 0x1, 0x6C783C);
+    //aml->Redirect(pGTASA + BYVER(0x5A3FDC + 0x1, 0x6C782C), (uintptr_t)DoSunAndMoon_Inject);
 }
