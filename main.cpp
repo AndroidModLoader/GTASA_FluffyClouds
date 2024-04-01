@@ -10,9 +10,9 @@
 #endif
 #define sizeofA(__aVar)  ((int)(sizeof(__aVar)/sizeof(__aVar[0])))
 
-MYMOD(net.theartemmaps.rusjj.fluff, FluffyCloudsSA, 1.0, TheArtemMaps & RusJJ)
+MYMOD(net.theartemmaps.rusjj.fluff, FluffyCloudsSA, 1.1, TheArtemMaps & RusJJ)
 BEGIN_DEPLIST()
-    ADD_DEPENDENCY_VER(net.rusjj.aml, 1.0.2.2)
+    ADD_DEPENDENCY_VER(net.rusjj.aml, 1.2.1)
 END_DEPLIST()
 
 uintptr_t pGTASA;
@@ -225,16 +225,16 @@ inline void RenderFluffyClouds()
 //////      Hooks
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
-DECL_HOOK(bool, GameInit3, void* data)
+DECL_HOOKb(GameInit3, void* data)
 {
-    bool ret = GameInit3(data);
+    GameInit3(data);
     FluffyCloudsTexDB = TextureDatabaseLoad("fluffyclouds", false, DF_Default);
     if(FluffyCloudsTexDB)
     {
         gpCloudTex[3] = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudmasked");
         gpCloudTex[4] = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudhilit");
     }
-    return ret;
+    return true;
 }
 DECL_HOOKv(RenderEffects)
 {
@@ -322,8 +322,8 @@ extern "C" void OnAllModsLoaded()
     SET_TO(DefinedState, aml->GetSym(hGTASA, "_Z12DefinedStatev"));
 
     HOOKPLT(GameInit3, pGTASA + BYVER(0x6742F0, 0x8470F0));
-    //HOOKPLT(RenderEffects, pGTASA + BYVER(0x672FFC, 0x8451A0)); // CClouds::Render ( looks bad... :( )
-    HOOKPLT(RenderEffects, pGTASA + BYVER(0x670BD4, 0x8452B0));
+    HOOKPLT(RenderEffects, pGTASA + BYVER(0x672FFC, 0x8451A0)); // CClouds::Render ( looks bad... :( )
+    //HOOKPLT(RenderEffects, pGTASA + BYVER(0x670BD4, 0x8452B0));
 
     //DoSunAndMoon_BackTo = pGTASA + BYVER(0x5A3FE6 + 0x1, 0x6C783C);
     //aml->Redirect(pGTASA + BYVER(0x5A3FDC + 0x1, 0x6C782C), (uintptr_t)DoSunAndMoon_Inject);
