@@ -310,6 +310,7 @@ extern "C" void OnAllModsLoaded()
     SET_TO(SunBlockedByClouds, aml->GetSym(hGTASA, "_ZN8CCoronas18SunBlockedByCloudsE"));
     SET_TO(m_CurrentColours, aml->GetSym(hGTASA, "_ZN10CTimeCycle16m_CurrentColoursE"));
     SET_TO(RsGlobal, aml->GetSym(hGTASA, "RsGlobal"));
+    SET_TO(gpCloudTex, aml->GetSym(hGTASA, "gpCloudTex"));
 
     SET_TO(RwRenderStateSet, aml->GetSym(hGTASA, "_Z16RwRenderStateSet13RwRenderStatePv"));
     SET_TO(_GetATanOfXY, aml->GetSym(hGTASA, "_ZN8CGeneral11GetATanOfXYEff"));
