@@ -43,7 +43,7 @@ TextureDatabaseRuntime* FluffyCloudsTexDB;
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 void (*RwRenderStateSet)(RwRenderState, void*);
-float (*GetATanOfXY)(float, float);
+//float (*GetATanOfXY)(float, float);
 bool (*CalcScreenCoors)(RwV3d const&, RwV3d*, float *, float *, bool, bool);
 void (*RenderBufferedOneXLUSprite_Rotate_2Colours)(float,float,float,float,float,unsigned char,unsigned char,unsigned char,unsigned char,unsigned char,unsigned char,float,float,float,float,unsigned char);
 void (*RenderBufferedOneXLUSprite_Rotate_Aspect)(float,float,float,float,float,unsigned char,unsigned char,unsigned char,short,float,float,unsigned char);
@@ -312,7 +312,7 @@ extern "C" void OnAllModsLoaded()
     SET_TO(RsGlobal, aml->GetSym(hGTASA, "RsGlobal"));
 
     SET_TO(RwRenderStateSet, aml->GetSym(hGTASA, "_Z16RwRenderStateSet13RwRenderStatePv"));
-    SET_TO(GetATanOfXY, aml->GetSym(hGTASA, "_ZN8CGeneral11GetATanOfXYEff"));
+    //SET_TO(GetATanOfXY, aml->GetSym(hGTASA, "_ZN8CGeneral11GetATanOfXYEff"));
     SET_TO(CalcScreenCoors, aml->GetSym(hGTASA, "_ZN7CSprite15CalcScreenCoorsERK5RwV3dPS0_PfS4_bb"));
     SET_TO(RenderBufferedOneXLUSprite_Rotate_2Colours, aml->GetSym(hGTASA, "_ZN7CSprite42RenderBufferedOneXLUSprite_Rotate_2ColoursEfffffhhhhhhffffh"));
     SET_TO(RenderBufferedOneXLUSprite_Rotate_Aspect, aml->GetSym(hGTASA, "_ZN7CSprite40RenderBufferedOneXLUSprite_Rotate_AspectEfffffhhhsffh"));
