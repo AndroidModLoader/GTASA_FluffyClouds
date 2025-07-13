@@ -10,7 +10,7 @@
 #endif
 #define sizeofA(__aVar)  ((int)(sizeof(__aVar)/sizeof(__aVar[0])))
 
-MYMOD(net.theartemmaps.rusjj.fluff, FluffyCloudsSA, 1.1, TheArtemMaps & RusJJ)
+MYMOD(net.theartemmaps.rusjj.fluff, FluffyCloudsSA, 1.2, TheArtemMaps & RusJJ)
 BEGIN_DEPLIST()
     ADD_DEPENDENCY_VER(net.rusjj.aml, 1.2.1)
 END_DEPLIST()
@@ -126,6 +126,7 @@ inline void RenderFluffyClouds()
         float distLimit = (3.0f * (float)(RsGlobal->maximumWidth)) / 4.0f;
         float sundistBlocked = (float)(RsGlobal->maximumWidth) / 10.0f;
         float sundistHilit = (float)(RsGlobal->maximumWidth) / 3.0;
+        float rotationValue = (uint16_t)*IndividualRotation / 65336.0f * 6.28f + *ms_cameraRoll;
 
         float rot_sin = sinf(*CloudRotation);
         float rot_cos = cosf(*CloudRotation);
@@ -159,12 +160,12 @@ inline void RenderFluffyClouds()
                 if (sundist < distLimit)
                 {
                     hilight = (1.0f - fmax(*Foggyness, *CloudCoverage)) * (1.0f - sundist / (float)distLimit);
-                    tr = tr * (1.0f - hilight) + 255 * hilight;
-                    tg = tg * (1.0f - hilight) + 150 * hilight;
-                    tb = tb * (1.0f - hilight) + 150 * hilight;
-                    br = br * (1.0f - hilight) + 255 * hilight;
-                    bg = bg * (1.0f - hilight) + 150 * hilight;
-                    bb = bb * (1.0f - hilight) + 150 * hilight;
+                    tr = tr * (1.0f - hilight) + 235 * hilight;
+                    tg = tg * (1.0f - hilight) + 190 * hilight;
+                    tb = tb * (1.0f - hilight) + 190 * hilight;
+                    br = br * (1.0f - hilight) + 235 * hilight;
+                    bg = bg * (1.0f - hilight) + 190 * hilight;
+                    bb = bb * (1.0f - hilight) + 190 * hilight;
                     CloudHighlight[i] = hilight;
 
                     if (sundist < sundistBlocked) *SunBlockedByClouds = (fluffyalpha > (FLUFF_ALPHA / 2));
@@ -177,7 +178,7 @@ inline void RenderFluffyClouds()
                 CloudToSunDistance[i] = sundist;
                 CloudOnScreen[i] = true;
                 RenderBufferedOneXLUSprite_Rotate_2Colours(screenpos.x, screenpos.y, screenpos.z, szx * 55.0f, szy * 55.0f, tr, tg, tb, br, bg, bb, 0.0f, -1.0f,
-                                                           1.0f / screenpos.z, (uint16_t)*IndividualRotation / 65336.0f * 6.28f + *ms_cameraRoll, fluffyalpha);
+                                                           1.0f / screenpos.z, rotationValue, fluffyalpha);
             }
             else
             {
@@ -231,8 +232,10 @@ DECL_HOOKb(GameInit3, void* data)
     FluffyCloudsTexDB = TextureDatabaseLoad("fluffyclouds", false, DF_Default);
     if(FluffyCloudsTexDB)
     {
-        gpCloudTex[3] = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudmasked");
-        gpCloudTex[4] = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudhilit");
+        RwTexture* gotTex = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudmasked");
+        if(gotTex) gpCloudTex[3] = gotTex;
+        gotTex = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudhilit");
+        if(gotTex) gpCloudTex[4] = gotTex;
     }
     return true;
 }
