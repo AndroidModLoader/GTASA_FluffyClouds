@@ -18,9 +18,11 @@ END_DEPLIST()
 uintptr_t pGTASA;
 void* hGTASA;
 
-#define MAX_FLUFFY_CLOUDS 37
-#define FLUFF_Z_OFFSET 55.0f // 40.0f
-#define FLUFF_ALPHA 180
+#define MAX_FLUFFY_CLOUDS               37
+#define FLUFF_Z_OFFSET                  55.0f // 40.0f
+#define FLUFF_ALPHA                     180
+#define FLUFF_SUNZ_HIGHLIGHT_START      (-0.03f)
+#define FLUFF_SUNZ_HIGHLIGHT_ENDFADE    (0.17f)
 
 #define NO_FLUFF_AT_HEIGHTS
 
@@ -30,12 +32,13 @@ void* hGTASA;
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 float *Foggyness, *ExtraSunnyness, *ms_cameraRoll, *CloudRotation, *SunScreenX, *SunScreenY, *CloudCoverage;
-unsigned int *IndividualRotation;
+unsigned int *IndividualRotation, *m_CurrentStoredValue;
 CCamera *TheCamera;
 bool *SunBlockedByClouds;
 CColourSet *m_CurrentColours;
 RsGlobalType *RsGlobal;
-TextureDatabaseRuntime* FluffyCloudsTexDB;
+RwTexture **gpCloudTex;
+CVector* m_VectorToSun;
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
@@ -61,10 +64,11 @@ void (*DefinedState)();
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
 CVector SunOnScreenUncapped;
-RwTexture** gpCloudTex;
+RwTexture *fluffy_CloudMasked = NULL, *fluffy_HiLight = NULL;
 bool CloudOnScreen[MAX_FLUFFY_CLOUDS];
 float CloudHighlight[MAX_FLUFFY_CLOUDS];
 float CloudToSunDistance[MAX_FLUFFY_CLOUDS];
+TextureDatabaseRuntime* FluffyCloudsTexDB;
 
 float CoorsOffsetX[MAX_FLUFFY_CLOUDS] = {
     0.0f, 60.0f, 72.0f, 48.0f, 21.0f, 12.0f,
@@ -105,7 +109,7 @@ inline RwTexture* GetTextureFromTexDB(TextureDatabaseRuntime* texdb, const char*
 inline void RenderFluffyClouds()
 {
     *SunBlockedByClouds = false;
-    int fluffyalpha = FLUFF_ALPHA * (1.0f - fmax(*Foggyness, *ExtraSunnyness));
+    int fluffyalpha = FLUFF_ALPHA * (1.0f - fmax(*Foggyness, 0.93f * *ExtraSunnyness));
 
     CVector campos = TheCamera->GetPosition();
 #ifdef NO_FLUFF_AT_HEIGHTS
@@ -128,17 +132,30 @@ inline void RenderFluffyClouds()
         float sundistHilit = (float)(RsGlobal->maximumWidth) / 3.0;
         float rotationValue = (uint16_t)*IndividualRotation / 65336.0f * 6.28f + *ms_cameraRoll;
 
+        float sunZ = m_VectorToSun[*m_CurrentStoredValue].z;
+        float hilightStrength = 0.0f;
+        if(sunZ > FLUFF_SUNZ_HIGHLIGHT_START)
+        {
+            if(sunZ < FLUFF_SUNZ_HIGHLIGHT_ENDFADE)
+            {
+                hilightStrength = (sunZ - FLUFF_SUNZ_HIGHLIGHT_START) / (FLUFF_SUNZ_HIGHLIGHT_ENDFADE - FLUFF_SUNZ_HIGHLIGHT_START);
+            }
+            else
+            {
+                hilightStrength = 1.0f;
+            }
+        }
+
         float rot_sin = sinf(*CloudRotation);
         float rot_cos = cosf(*CloudRotation);
 
-        DefinedState();
-        //RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)1);
-        //RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)1);
-        //RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)1);
+        RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)0);
+        RwRenderStateSet(rwRENDERSTATEZTESTENABLE, (void*)0);
+        RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)1);
 
         RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDSRCALPHA);
         RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDINVSRCALPHA);
-        RwRenderStateSet(rwRENDERSTATETEXTURERASTER, gpCloudTex[3]->raster);
+        RwRenderStateSet(rwRENDERSTATETEXTURERASTER, fluffy_CloudMasked->raster);
         for(int i = 0; i < MAX_FLUFFY_CLOUDS; ++i)
         {
             RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + FLUFF_Z_OFFSET };
@@ -150,16 +167,16 @@ inline void RenderFluffyClouds()
             {
                 sundist = sqrtf(SQR(screenpos.x - *SunScreenX) + SQR(screenpos.y - *SunScreenY));
                 //sundist = sqrtf(SQR(screenpos.x - SunOnScreenUncapped.x) + SQR(screenpos.y - SunOnScreenUncapped.y));
-                int tr = m_CurrentColours->fluffycloudr; //0;
-                int tg = m_CurrentColours->fluffycloudg; //0;
-                int tb = m_CurrentColours->fluffycloudb; //0;
-                int br = (int)(m_CurrentColours->fluffycloudr * 0.85f);
-                int bg = (int)(m_CurrentColours->fluffycloudg * 0.85f);
-                int bb = (int)(m_CurrentColours->fluffycloudb * 0.85f);
+                int tr = m_CurrentColours->fluffycloudr;
+                int tg = m_CurrentColours->fluffycloudg;
+                int tb = m_CurrentColours->fluffycloudb;
+                int br = (int)(tr * 0.85f);
+                int bg = (int)(tg * 0.85f);
+                int bb = (int)(tb * 0.85f);
 
-                if (sundist < distLimit)
+                if(hilightStrength > 0 && sundist < distLimit)
                 {
-                    hilight = (1.0f - fmax(*Foggyness, *CloudCoverage)) * (1.0f - sundist / (float)distLimit);
+                    hilight = hilightStrength * (1.0f - fmax(*Foggyness, *CloudCoverage)) * (1.0f - sundist / (float)distLimit);
                     tr = tr * (1.0f - hilight) + 235 * hilight;
                     tg = tg * (1.0f - hilight) + 190 * hilight;
                     tb = tb * (1.0f - hilight) + 190 * hilight;
@@ -187,31 +204,34 @@ inline void RenderFluffyClouds()
         }
         FlushSpriteBuffer();
 
-        RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDONE);
-        RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDONE);
-        RwRenderStateSet(rwRENDERSTATETEXTURERASTER, gpCloudTex[4]->raster);
-        for(int i = 0; i < MAX_FLUFFY_CLOUDS; ++i)
+        if(fluffy_HiLight)
         {
-            if(!CloudOnScreen[i]) continue;
-
-            RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + FLUFF_Z_OFFSET };
-            worldpos.x = pos.x * rot_cos + pos.y * rot_sin + campos.x;
-            worldpos.y = pos.x * rot_sin - pos.y * rot_cos + campos.y;
-            worldpos.z = pos.z;
-
-            if (CalcScreenCoors(worldpos, &screenpos, &szx, &szy, false, false))
+            RwRenderStateSet(rwRENDERSTATESRCBLEND, (void*)rwBLENDONE);
+            RwRenderStateSet(rwRENDERSTATEDESTBLEND, (void*)rwBLENDONE);
+            RwRenderStateSet(rwRENDERSTATETEXTURERASTER, fluffy_HiLight->raster);
+            for(int i = 0; i < MAX_FLUFFY_CLOUDS; ++i)
             {
-                //if (CloudToSunDistance[i] < sundistHilit)
-                if(CloudHighlight[i] > 0)
+                if(!CloudOnScreen[i]) continue;
+
+                RwV3d pos = { 2.0f * CoorsOffsetX[i], 2.0f * CoorsOffsetY[i], 40.0f * CoorsOffsetZ[i] + FLUFF_Z_OFFSET };
+                worldpos.x = pos.x * rot_cos + pos.y * rot_sin + campos.x;
+                worldpos.y = pos.x * rot_sin - pos.y * rot_cos + campos.y;
+                worldpos.z = pos.z;
+
+                if (CalcScreenCoors(worldpos, &screenpos, &szx, &szy, false, false))
                 {
-                    RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
-                                                             1.7f - _GetATanOfXY(screenpos.x - *SunScreenX, screenpos.y - *SunScreenY) + *ms_cameraRoll, 255);
-                    //RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
-                    //                                         1.7f - _GetATanOfXY(screenpos.x - SunOnScreenUncapped.x, screenpos.y - SunOnScreenUncapped.y) + *ms_cameraRoll, 255);
+                    //if (CloudToSunDistance[i] < sundistHilit)
+                    if(CloudHighlight[i] > 0)
+                    {
+                        RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
+                                                                1.7f - _GetATanOfXY(screenpos.x - *SunScreenX, screenpos.y - *SunScreenY) + *ms_cameraRoll, 255);
+                        //RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
+                        //                                         1.7f - _GetATanOfXY(screenpos.x - SunOnScreenUncapped.x, screenpos.y - SunOnScreenUncapped.y) + *ms_cameraRoll, 255);
+                    }
                 }
             }
+            FlushSpriteBuffer();
         }
-        FlushSpriteBuffer();
 
         RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, (void*)0);
         RwRenderStateSet(rwRENDERSTATEZWRITEENABLE, (void*)1);
@@ -229,14 +249,27 @@ inline void RenderFluffyClouds()
 DECL_HOOKb(GameInit3, void* data)
 {
     GameInit3(data);
+    fluffy_CloudMasked = gpCloudTex[1];
     FluffyCloudsTexDB = TextureDatabaseLoad("fluffyclouds", false, DF_Default);
     if(FluffyCloudsTexDB)
     {
         RwTexture* gotTex = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudmasked");
-        if(gotTex) gpCloudTex[3] = gotTex;
-        gotTex = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudhilit");
-        if(gotTex) gpCloudTex[4] = gotTex;
+        if(gotTex) fluffy_CloudMasked = gotTex;
+        fluffy_HiLight = GetTextureFromTexDB(FluffyCloudsTexDB, "cloudhilit");
     }
+
+    if(fluffy_CloudMasked->raster &&
+       fluffy_CloudMasked->raster->dbEntry)
+    {
+        TextureDatabaseEntry* entry = fluffy_CloudMasked->raster->dbEntry;
+        if(fluffy_CloudMasked == gpCloudTex[1])
+        {
+            entry->flags |= 0x200; // noalphatest
+            entry->flags |= 0x80; // forcez
+        }
+        entry->flags &= ~0x40; // camnorm (remove)
+    }
+
     return true;
 }
 DECL_HOOKv(RenderEffects)
@@ -306,10 +339,12 @@ extern "C" void OnAllModsLoaded()
     SET_TO(SunScreenY, aml->GetSym(hGTASA, "_ZN8CCoronas10SunScreenYE"));
     SET_TO(CloudCoverage, aml->GetSym(hGTASA, "_ZN8CWeather13CloudCoverageE"));
     SET_TO(IndividualRotation, aml->GetSym(hGTASA, "_ZN7CClouds18IndividualRotationE"));
+    SET_TO(m_CurrentStoredValue, aml->GetSym(hGTASA, "_ZN10CTimeCycle20m_CurrentStoredValueE"));
     SET_TO(TheCamera, aml->GetSym(hGTASA, "TheCamera"));
     SET_TO(SunBlockedByClouds, aml->GetSym(hGTASA, "_ZN8CCoronas18SunBlockedByCloudsE"));
     SET_TO(m_CurrentColours, aml->GetSym(hGTASA, "_ZN10CTimeCycle16m_CurrentColoursE"));
     SET_TO(RsGlobal, aml->GetSym(hGTASA, "RsGlobal"));
+    SET_TO(m_VectorToSun, aml->GetSym(hGTASA, "_ZN10CTimeCycle13m_VectorToSunE"));
     SET_TO(gpCloudTex, aml->GetSym(hGTASA, "gpCloudTex"));
 
     SET_TO(RwRenderStateSet, aml->GetSym(hGTASA, "_Z16RwRenderStateSet13RwRenderStatePv"));
