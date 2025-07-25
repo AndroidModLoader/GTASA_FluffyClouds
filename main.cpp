@@ -19,10 +19,12 @@ uintptr_t pGTASA;
 void* hGTASA;
 
 #define MAX_FLUFFY_CLOUDS               37
-#define FLUFF_Z_OFFSET                  55.0f // 40.0f
+#define FLUFF_Z_OFFSET                  60.0f // 40.0f
+#define FLUFF_Z_FADING                  100.0f
 #define FLUFF_ALPHA                     180
 #define FLUFF_SUNZ_HIGHLIGHT_START      (-0.03f)
 #define FLUFF_SUNZ_HIGHLIGHT_ENDFADE    (0.17f)
+#define FLUFF_SIZE                      (55.0f)
 
 #define NO_FLUFF_AT_HEIGHTS
 
@@ -109,13 +111,13 @@ inline RwTexture* GetTextureFromTexDB(TextureDatabaseRuntime* texdb, const char*
 inline void RenderFluffyClouds()
 {
     *SunBlockedByClouds = false;
-    int fluffyalpha = FLUFF_ALPHA * (1.0f - fmax(*Foggyness, 0.93f * *ExtraSunnyness));
+    int fluffyalpha = FLUFF_ALPHA * (1.0f - fmax(*Foggyness, 0.95f * *ExtraSunnyness));
 
     CVector campos = TheCamera->GetPosition();
 #ifdef NO_FLUFF_AT_HEIGHTS
-    if(campos.z > FLUFF_Z_OFFSET)
+    if(campos.z > FLUFF_Z_FADING)
     {
-        fluffyalpha -= (campos.z - FLUFF_Z_OFFSET) * ((float)(255 - (unsigned char)FLUFF_ALPHA) / 255.0f);
+        fluffyalpha -= (campos.z - FLUFF_Z_FADING) * ((float)(255 - (unsigned char)FLUFF_ALPHA) / 255.0f);
     }
 #endif
 
@@ -124,13 +126,12 @@ inline void RenderFluffyClouds()
         if(fluffyalpha > 255) fluffyalpha = 255;
         InitSpriteBuffer();
 
-        float sundist, hilight;
-        float szx, szy;
         RwV3d screenpos, worldpos;
-        float distLimit = (3.0f * (float)(RsGlobal->maximumWidth)) / 4.0f;
-        float sundistBlocked = (float)(RsGlobal->maximumWidth) / 10.0f;
-        float sundistHilit = (float)(RsGlobal->maximumWidth) / 3.0;
-        float rotationValue = (uint16_t)*IndividualRotation / 65336.0f * 6.28f + *ms_cameraRoll;
+        float sundist, hilight, szx, szy;
+        float distLimit = (float)(RsGlobal->maximumHeight) / 2.0f;
+        float sundistBlocked = (float)(RsGlobal->maximumHeight) / 8.0f;
+        //float sundistHilit = (float)(RsGlobal->maximumWidth) / 3.0;
+        float rotationValue = (uint16_t)*IndividualRotation / 65536.0f * 6.28f + *ms_cameraRoll;
 
         float sunZ = m_VectorToSun[*m_CurrentStoredValue].z;
         float hilightStrength = 0.0f;
@@ -174,7 +175,7 @@ inline void RenderFluffyClouds()
                 int bg = (int)(tg * 0.85f);
                 int bb = (int)(tb * 0.85f);
 
-                if(hilightStrength > 0 && sundist < distLimit)
+                if(hilightStrength != 0 && sundist < distLimit)
                 {
                     hilight = hilightStrength * (1.0f - fmax(*Foggyness, *CloudCoverage)) * (1.0f - sundist / (float)distLimit);
                     tr = tr * (1.0f - hilight) + 235 * hilight;
@@ -194,7 +195,8 @@ inline void RenderFluffyClouds()
                 }
                 CloudToSunDistance[i] = sundist;
                 CloudOnScreen[i] = true;
-                RenderBufferedOneXLUSprite_Rotate_2Colours(screenpos.x, screenpos.y, screenpos.z, szx * 55.0f, szy * 55.0f, tr, tg, tb, br, bg, bb, 0.0f, -1.0f,
+                RenderBufferedOneXLUSprite_Rotate_2Colours(screenpos.x, screenpos.y, screenpos.z, szx * FLUFF_SIZE, szy * FLUFF_SIZE,
+                                                           tr, tg, tb, br, bg, bb, 0.0f, -1.0f,
                                                            1.0f / screenpos.z, rotationValue, fluffyalpha);
             }
             else
@@ -223,7 +225,8 @@ inline void RenderFluffyClouds()
                     //if (CloudToSunDistance[i] < sundistHilit)
                     if(CloudHighlight[i] > 0)
                     {
-                        RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
+                        RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * FLUFF_SIZE * 0.5455, szy * FLUFF_SIZE * 0.5455,
+                                                                200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
                                                                 1.7f - _GetATanOfXY(screenpos.x - *SunScreenX, screenpos.y - *SunScreenY) + *ms_cameraRoll, 255);
                         //RenderBufferedOneXLUSprite_Rotate_Aspect(screenpos.x, screenpos.y, screenpos.z, szx * 30.0f, szy * 30.0f, 200 * CloudHighlight[i], 0, 0, 255, 1.0f / screenpos.z,
                         //                                         1.7f - _GetATanOfXY(screenpos.x - SunOnScreenUncapped.x, screenpos.y - SunOnScreenUncapped.y) + *ms_cameraRoll, 255);
@@ -288,9 +291,9 @@ extern "C" void DoSunAndMoon_Patch(CVector* screenPos)
 {
     SunOnScreenUncapped = *screenPos;
 }
-#ifdef AML32
 __attribute__((optnone)) __attribute__((naked)) void DoSunAndMoon_Inject(void)
 {
+#ifdef AML32
     asm volatile("PUSH {R0-R11}");
     asm volatile("ADD R0, SP, 0x84");
     asm volatile("BL DoSunAndMoon_Patch");
@@ -302,10 +305,7 @@ __attribute__((optnone)) __attribute__((naked)) void DoSunAndMoon_Inject(void)
     asm volatile("POP.W {R8,R9,R11}");
 
     asm volatile("BX R12");
-}
 #else
-__attribute__((optnone)) __attribute__((naked)) void DoSunAndMoon_Inject(void)
-{
     asm volatile("SUB X0, X29, #0x48");
     asm volatile("BL DoSunAndMoon_Patch");
     asm volatile("MOV X16, %0" :: "r"(DoSunAndMoon_BackTo));
@@ -316,8 +316,8 @@ __attribute__((optnone)) __attribute__((naked)) void DoSunAndMoon_Inject(void)
                  "LDP D9, D8, [SP,#0x70]\n");
                  
     asm volatile("BR X16");
-}
 #endif
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////
